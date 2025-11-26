@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Simulação de Agentes</title>
+
+<style>
+    body {
+        margin: 0;
+        background: #111;
+        font-family: Arial;
+        color: #fff;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    .app {
+        display: flex;
+        width: 100%;
+        height: 100%;
+    }
+
+    #simulation-canvas {
+        background: #000;
+        flex: 1;
+    }
+
+    .agent-list {
+        width: 280px;
+        background: #1a1a1a;
+        padding: 10px;
+        overflow-y: auto;
+        border-left: 2px solid #222;
+    }
+
+    .agent {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #222;
+        padding: 8px;
+        border-radius: 6px;
+        margin-bottom: 6px;
+    }
+
+    .dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+    }
+
+    .agent-info {
+        display: flex;
+        flex-direction: column;
+        font-size: 13px;
+    }
+</style>
+</head>
+
+<body>
+<div class="app">
+
+    <canvas id="simulation-canvas"></canvas>
+
+    <div class="agent-list"></div>
+
+</div>
+
+<script>
+    const canvas = document.getElementById('simulation-canvas');
+    const ctx = canvas.getContext('2d');
+    const agentListContainer = document.querySelector('.agent-list');
+
+    const NUM_AGENTS = 20;
+    const AGENT_RADIUS = 3;
+    const AGENT_SPEED = 0.5;
+    let agents = [];
+
+    const colors = [
+        '#ff0077', '#00ffaa', '#ffe500', '#00e5ff', '#ff5733', '#8e44ad', '#3498db'
+    ];
+
+    function random(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    class Agent {
+        constructor(id) {
+            this.id = id;
+            this.x = random(0, canvas.width);
+            this.y = random(0, canvas.height);
+            this.vx = random(-AGENT_SPEED, AGENT_SPEED);
+            this.vy = random(-AGENT_SPEED, AGENT_SPEED);
+            this.color = colors[id % colors.length];
+            this.status = 'Ocioso';
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+
+            if (Math.random() < 0.01) {
+                this.vx = random(-AGENT_SPEED, AGENT_SPEED);
+                this.vy = random(-AGENT_SPEED, AGENT_SPEED);
+            }
+
+            this.status = Math.random() < 0.005 ? 'Construindo' : 'Movendo';
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, AGENT_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+        }
+    }
+
+    function init() {
+        canvas.width = window.innerWidth - 280;
+        canvas.height = window.innerHeight;
+
+        agents = [];
+        for (let i = 0; i < NUM_AGENTS; i++) {
+            agents.push(new Agent(i + 1));
+        }
+
+        renderAgentList();
+        requestAnimationFrame(loop);
+    }
+
+    function loop() {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        agents.forEach(agent => {
+            agent.update();
+            agent.draw();
+        });
+
+        if (Date.now() % 60 === 0) {
+             renderAgentList();
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    function renderAgentList() {
+        agentListContainer.innerHTML = '';
+        agents.forEach(agent => {
+            const agentDiv = document.createElement('div');
+            agentDiv.className = 'agent';
+            agentDiv.innerHTML = `
+                <div class="dot" style="background: ${agent.color};"></div>
+                <div class="agent-info">
+                    <strong>Agente ${agent.id.toString().padStart(3, '0')}</strong>
+                    <span>Status: ${agent.status} | Coord: (${Math.round(agent.x)}, ${Math.round(agent.y)})</span>
+                </div>
+            `;
+            agentListContainer.appendChild(agentDiv);
+        });
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>
