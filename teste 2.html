@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Simulação Avançada</title>
+<style>
+  body{margin:0;background:#0b0b0b;color:#fff;font-family:Arial}
+  .app{display:flex;height:100vh}
+  #sim{flex:1;background:#000}
+  .side{width:360px;background:#161616;padding:10px;display:flex;flex-direction:column;gap:10px;overflow:auto}
+  .panel{background:#1f1f1f;padding:8px;border-radius:6px}
+  .small{font-size:12px;color:#bbb}
+  #log{max-height:200px;overflow:auto;font-size:12px;background:#111;padding:6px;border-radius:4px}
+  #chart{width:100%;height:120px;background:#111;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="app">
+<canvas id="sim"></canvas>
+
+<div class="side">
+  <div class="panel">
+    <strong>Métricas de Organização</strong><br/>
+    <div class="small" id="metric-clusters">Clusters: —</div>
+    <div class="small" id="metric-avgdist">Distância média: —</div>
+  </div>
+
+  <div class="panel">
+    <strong>Padrões Emergentes (Gráfico)</strong>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="panel">
+    <strong>Eventos (Logs)</strong>
+    <div id="log"></div>
+  </div>
+</div>
+</div>
+
+<script>
+const sim = document.getElementById('sim');
+const ctx = sim.getContext('2d');
+const chart = document.getElementById('chart');
+const cctx = chart.getContext('2d');
+let W,H;
+
+function resize(){
+  sim.width = window.innerWidth - 360;
+  sim.height = window.innerHeight;
+  W = sim.width; H = sim.height;
+}
+resize();
+window.onresize = resize;
+
+const N = 50;
+const agents=[];
+function rnd(a,b){return Math.random()*(b-a)+a;}
+
+class Agent{
+  constructor(id){
+    this.id=id;
+    this.x=rnd(0,W);
+    this.y=rnd(0,H);
+    this.vx=rnd(-1,1);
+    this.vy=rnd(-1,1);
+    this.size=3;
+  }
+  update(){
+    this.x+=this.vx; this.y+=this.vy;
+    if(this.x<0||this.x>W) this.vx*=-1;
+    if(this.y<0||this.y>H) this.vy*=-1;
+
+    if(Math.random()<0.003) triggerEvent(this);
+  }
+  draw(){
+    ctx.beginPath();
+    ctx.fillStyle="white";
+    ctx.arc(this.x,this.y,this.size,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+for(let i=0;i<N;i++) agents.push(new Agent(i));
+
+const logs=[];
+function log(msg){
+  logs.push(msg);
+  if(logs.length>60) logs.shift();
+  document.getElementById('log').innerHTML = logs.map(l=>"<div>"+l+"</div>").join("");
+}
+
+function triggerEvent(agent){
+  const types=["cooperar","agrupar","corrida","curioso"];
+  const t=types[Math.floor(Math.random()*types.length)];
+  if(t==="cooperar"){
+    log(`Agente ${agent.id} cooperou com vizinhos.`);
+  }else if(t==="agrupar"){
+    log(`Agente ${agent.id} iniciou agrupamento.`);
+    agent.vx*=0.2; agent.vy*=0.2;
+  }else if(t==="corrida"){
+    log(`Agente ${agent.id} entrou em corrida!`);
+    agent.vx*=5; agent.vy*=5;
+    setTimeout(()=>{agent.vx*=0.2;agent.vy*=0.2;},800);
+  }else if(t==="curioso"){
+    log(`Agente ${agent.id} ficou curioso.`);
+    const dx=W/2-agent.x, dy=H/2-agent.y;
+    const d=Math.hypot(dx,dy);
+    agent.vx+=dx/d*1.5;
+    agent.vy+=dy/d*1.5;
+  }
+}
+
+/* --- Metrics --- */
+function computeMetrics(){
+  // average distance
+  let sum=0, count=0;
+  for(let i=0;i<N;i++){
+    for(let j=i+1;j<N;j++){
+      const dx=agents[i].x-agents[j].x;
+      const dy=agents[i].y-agents[j].y;
+      const d=Math.hypot(dx,dy);
+      sum+=d; count++;
+    }
+  }
+  const avg = sum/count;
+  document.getElementById("metric-avgdist").textContent = "Distância média: "+avg.toFixed(1);
+
+  // clusters: if distance < 80
+  const visited=new Set();
+  let clusters=0;
+  function dfs(i){
+    visited.add(i);
+    for(let j=0;j<N;j++){
+      if(!visited.has(j)){
+        const d=Math.hypot(agents[i].x-agents[j].x,agents[i].y-agents[j].y);
+        if(d<80) dfs(j);
+      }
+    }
+  }
+  for(let i=0;i<N;i++){
+    if(!visited.has(i)){
+      dfs(i);
+      clusters++;
+    }
+  }
+  document.getElementById("metric-clusters").textContent = "Clusters: " + clusters;
+
+  // push to chart history
+  history.push(avg);
+  if(history.length>200) history.shift();
+}
+
+/* --- Chart --- */
+const history=[];
+function drawChart(){
+  cctx.clearRect(0,0,chart.width,chart.height);
+  cctx.beginPath();
+  cctx.strokeStyle="orange";
+  const max = Math.max(...history,1);
+  for(let i=0;i<history.length;i++){
+    const x = i/history.length * chart.width;
+    const y = chart.height - (history[i]/max * chart.height);
+    if(i===0) cctx.moveTo(x,y);
+    else cctx.lineTo(x,y);
+  }
+  cctx.stroke();
+}
+
+/* --- Loop --- */
+function loop(){
+  ctx.fillStyle="rgba(0,0,0,0.2)";
+  ctx.fillRect(0,0,W,H);
+
+  for(const a of agents){a.update();}
+  for(const a of agents){a.draw();}
+
+  computeMetrics();
+  drawChart();
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
