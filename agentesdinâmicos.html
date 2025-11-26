@@ -1,0 +1,196 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<title>Agentes Evolução Completa — Construções e Vontades Dinâmicas</title>
+<style>
+body{margin:0;background:#111;color:#fff;font-family:Arial}
+#c{display:block}
+#log{position:fixed;right:0;top:0;width:260px;height:100%;overflow:auto;
+background:rgba(0,0,0,.35);padding:6px;font-size:12px}
+.b{position:absolute;background:#fff;color:#000;padding:2px 6px;
+border-radius:6px;font-size:11px;opacity:.88}
+</style></head><body>
+<canvas id="c"></canvas><div id="log"></div>
+<script>
+const cv=document.getElementById("c"),ctx=cv.getContext("2d");
+const log=document.getElementById("log");
+function rs(){cv.width=innerWidth-260;cv.height=innerHeight;}rs();
+
+function lg(t){let d=document.createElement("div");d.textContent=t;
+log.appendChild(d);log.scrollTop=log.scrollHeight;}
+
+function r(a){return a[Math.random()*a.length|0]}
+
+// falas mudam conforme tempo e humor
+const falasGerais = [
+  "acho que quero tentar algo novo",
+  "tô repensando minhas tarefas",
+  "quero explorar mais",
+  "vou construir algo diferente",
+  "acho que vou descansar um pouco",
+  "bora trabalhar melhor em equipe",
+  "precisamos melhorar nossa aldeia"
+];
+
+const falasConstrucao = [
+  "vou fazer uma base mais firme",
+  "hora de evoluir isso aqui",
+  "tô construindo algo massa",
+  "essa parte tá ficando boa",
+  "precisamos reforçar isso"
+];
+
+const falasExplorar = [
+  "vou ver o que tem por aqui",
+  "tô sentindo algo interessante ali",
+  "bora mapear melhor a área",
+  "tem recurso novo por perto"
+];
+
+let A=[],C=[],M=[],id=0;
+
+// novos estados
+const estados=["explorar","planejar","coletar","construir","descansar","observar"];
+
+function fala(a,t){
+ let b=document.createElement("div");
+ b.className="b"; b.textContent=t;
+ b.style.left=a.x+"px"; b.style.top=a.y-25+"px";
+ document.body.appendChild(b);
+ setTimeout(()=>b.remove(),1800);
+ lg(a.nome+": "+t);
+}
+
+function novaFalaDinamica(a){
+  let escolha;
+  if(a.est=="construir") escolha=r(falasConstrucao);
+  else if(a.est=="explorar") escolha=r(falasExplorar);
+  else escolha=r(falasGerais);
+  fala(a, escolha);
+}
+
+function novoAg(pai){
+ let nm="A"+(++id);
+ let ag={
+   id,nome:nm,
+   x:Math.random()*cv.width*0.6 + cv.width*0.2,
+   y:Math.random()*cv.height*0.6 + cv.height*0.2,
+   vx:0,vy:0,
+   humor:1,
+   est:"explorar",
+   ciclo:60+Math.random()*120|0,
+   mat:0
+ };
+ lg("Novo agente: "+nm+(pai?" (filho de "+pai.nome+")":""));
+ return ag;
+}
+
+for(let i=0;i<10;i++)A.push(novoAg());
+
+function novaConstr(x,y){
+ C.push({x,y,l:1,t:Date.now()});
+}
+
+function dropMat(x,y){
+ M.push({x,y});
+}
+
+function loop(){
+ ctx.clearRect(0,0,cv.width,cv.height);
+ let cx=cv.width/2, cy=cv.height/2;
+
+ // desenhar materiais
+ for(let m of M){
+   ctx.fillStyle="#aa6"; ctx.fillRect(m.x-3,m.y-3,6,6);
+ }
+
+ // construções agora exibidas com contorno e níveis
+ for(let c of C){
+   ctx.fillStyle = c.l==1 ? "#333" : c.l==2 ? "#0a5" : "#0af";
+   ctx.strokeStyle="#fff";
+   ctx.lineWidth=1.2;
+   ctx.beginPath();
+   ctx.rect(c.x-10, c.y-10, 20, 20);
+   ctx.fill();
+   ctx.stroke();
+ }
+
+ // agentes
+ for(let a of A){
+   a.ciclo--;
+   if(a.ciclo<=0){
+     a.est=r(estados);
+     a.ciclo=80+Math.random()*120|0;
+     novaFalaDinamica(a);
+   }
+
+   // comportamento de cada estado
+   if(a.est=="explorar"){
+     a.vx+=(Math.random()-.5)*.1;
+     a.vy+=(Math.random()-.5)*.1;
+
+     let dx=cx-a.x, dy=cy-a.y;
+     a.vx+=dx*0.0009;
+     a.vy+=dy*0.0009;
+
+     if(Math.random()<0.004) dropMat(a.x,a.y);
+   }
+
+   if(a.est=="coletar"){
+     for(let i=M.length-1;i>=0;i--){
+       let m=M[i];
+       let dx=a.x-m.x,dy=a.y-m.y;
+       if(dx*dx+dy*dy<90){
+         M.splice(i,1);
+         a.mat++;
+         fala(a,"peguei material!");
+       }
+     }
+   }
+
+   if(a.est=="construir" && a.mat>0){
+     if(Math.random()<0.03){
+       novaConstr(a.x,a.y);
+       a.mat--;
+       fala(a,"construí algo!");
+     }
+
+     for(let c of C){
+       if(Math.hypot(a.x-c.x,a.y-c.y)<60 && Math.random()<0.01){
+         c.l=Math.min(3,c.l+1);
+         fala(a,"evoluí a estrutura");
+       }
+     }
+   }
+
+   if(a.est=="observar"){
+     a.vx*=0.95;
+     a.vy*=0.95;
+     if(Math.random()<0.003) fala(a,"observando o movimento…");
+   }
+
+   if(a.est=="descansar"){
+     a.vx*=0.8;
+     a.vy*=0.8;
+   }
+
+   // reprodução natural
+   if(Math.random()<0.0007 && A.length<35){
+     A.push(novoAg(a));
+   }
+
+   // movimento final
+   a.x+=a.vx; a.y+=a.vy;
+
+   const m=45;
+   if(a.x<m) a.vx+=0.5;
+   if(a.x>cv.width-m) a.vx-=0.5;
+   if(a.y<m) a.vy+=0.5;
+   if(a.y>cv.height-m) a.vy-=0.5;
+
+   ctx.fillStyle="#0f0";
+   ctx.beginPath(); ctx.arc(a.x,a.y,6,0,6.28); ctx.fill();
+ }
+
+ requestAnimationFrame(loop);
+}
+loop();
+</script></body></html>
